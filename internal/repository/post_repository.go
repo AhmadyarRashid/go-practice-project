@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/yourusername/go-enterprise-api/internal/database"
 	"github.com/yourusername/go-enterprise-api/internal/models"
 	apperrors "github.com/yourusername/go-enterprise-api/pkg/errors"
 	"gorm.io/gorm"
@@ -139,14 +140,16 @@ func (r *postRepository) FindAllWithAuthor(ctx context.Context, page, pageSize i
 }
 
 // SearchPosts searches for posts by title or content
+// Uses GORM Scopes instead of raw SQL LIKE queries
 func (r *postRepository) SearchPosts(ctx context.Context, query string, page, pageSize int) ([]models.Post, int64, error) {
 	var posts []models.Post
 	var total int64
 
-	searchQuery := "%" + query + "%"
+	// Define searchable fields
+	searchFields := []string{"title", "content"}
 
 	err := r.DB.WithContext(ctx).Model(&models.Post{}).
-		Where("title LIKE ? OR content LIKE ?", searchQuery, searchQuery).
+		Scopes(database.Search(searchFields, query)).
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -156,7 +159,7 @@ func (r *postRepository) SearchPosts(ctx context.Context, query string, page, pa
 	err = r.DB.WithContext(ctx).
 		Preload("User").
 		Preload("Tags").
-		Where("title LIKE ? OR content LIKE ?", searchQuery, searchQuery).
+		Scopes(database.Search(searchFields, query)).
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).
 		Find(&posts).Error
@@ -164,42 +167,74 @@ func (r *postRepository) SearchPosts(ctx context.Context, query string, page, pa
 	return posts, total, err
 }
 
-// AddTag adds a tag to a post
+// AddTag adds a tag to a post using GORM Association
+// No raw SQL needed - uses GORM's built-in many-to-many support
 func (r *postRepository) AddTag(ctx context.Context, postID, tagID uuid.UUID) error {
-	return r.DB.WithContext(ctx).Exec("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)", postID, tagID).Error
+	post := &models.Post{}
+	post.ID = postID
+
+	tag := &models.Tag{}
+	tag.ID = tagID
+
+	return r.DB.WithContext(ctx).Model(post).Association("Tags").Append(tag)
 }
 
-// RemoveTag removes a tag from a post
+// RemoveTag removes a tag from a post using GORM Association
+// No raw SQL needed - uses GORM's built-in many-to-many support
 func (r *postRepository) RemoveTag(ctx context.Context, postID, tagID uuid.UUID) error {
-	return r.DB.WithContext(ctx).Exec("DELETE FROM post_tags WHERE post_id = ? AND tag_id = ?", postID, tagID).Error
+	post := &models.Post{}
+	post.ID = postID
+
+	tag := &models.Tag{}
+	tag.ID = tagID
+
+	return r.DB.WithContext(ctx).Model(post).Association("Tags").Delete(tag)
 }
 
-// FindByTag finds posts by tag slug
+// FindByTag finds posts by tag slug using GORM Association
+// No raw SQL JOIN needed - uses GORM's relationship features
 func (r *postRepository) FindByTag(ctx context.Context, tagSlug string, page, pageSize int) ([]models.Post, int64, error) {
 	var posts []models.Post
 	var total int64
 
-	// Count total
-	err := r.DB.WithContext(ctx).Model(&models.Post{}).
-		Joins("JOIN post_tags ON post_tags.post_id = posts.id").
-		Joins("JOIN tags ON tags.id = post_tags.tag_id").
-		Where("tags.slug = ?", tagSlug).
-		Count(&total).Error
+	// First, find the tag by slug
+	var tag models.Tag
+	err := r.DB.WithContext(ctx).Where("slug = ?", tagSlug).First(&tag).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return []models.Post{}, 0, nil // Return empty if tag not found
+		}
 		return nil, 0, err
 	}
 
-	// Get paginated results
+	// Count total posts with this tag using Association
+	total = r.DB.WithContext(ctx).Model(&tag).Association("Posts").Count()
+
+	// Get paginated posts using Association
 	offset := (page - 1) * pageSize
 	err = r.DB.WithContext(ctx).
+		Model(&tag).
 		Preload("User").
 		Preload("Tags").
-		Joins("JOIN post_tags ON post_tags.post_id = posts.id").
-		Joins("JOIN tags ON tags.id = post_tags.tag_id").
-		Where("tags.slug = ?", tagSlug).
-		Order("posts.created_at DESC").
+		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).
-		Find(&posts).Error
+		Association("Posts").
+		Find(&posts)
+
+	// If Association.Find doesn't support Preload, use alternative approach
+	if len(posts) > 0 {
+		// Reload posts with relationships
+		var postIDs []uuid.UUID
+		for _, p := range posts {
+			postIDs = append(postIDs, p.ID)
+		}
+		err = r.DB.WithContext(ctx).
+			Preload("User").
+			Preload("Tags").
+			Where("id IN ?", postIDs).
+			Order("created_at DESC").
+			Find(&posts).Error
+	}
 
 	return posts, total, err
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/yourusername/go-enterprise-api/internal/database"
 	"github.com/yourusername/go-enterprise-api/internal/models"
 	apperrors "github.com/yourusername/go-enterprise-api/pkg/errors"
 	"gorm.io/gorm"
@@ -102,24 +103,26 @@ func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 }
 
 // SearchUsers searches for users by name or email
+// Uses GORM Scopes instead of raw SQL LIKE queries
 func (r *userRepository) SearchUsers(ctx context.Context, query string, page, pageSize int) ([]models.User, int64, error) {
 	var users []models.User
 	var total int64
 
-	searchQuery := "%" + query + "%"
+	// Define searchable fields
+	searchFields := []string{"first_name", "last_name", "email"}
 
-	// Count total
+	// Count total using scope
 	err := r.DB.WithContext(ctx).Model(&models.User{}).
-		Where("first_name LIKE ? OR last_name LIKE ? OR email LIKE ?", searchQuery, searchQuery, searchQuery).
+		Scopes(database.Search(searchFields, query)).
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get paginated results
+	// Get paginated results using scope
 	offset := (page - 1) * pageSize
 	err = r.DB.WithContext(ctx).
-		Where("first_name LIKE ? OR last_name LIKE ? OR email LIKE ?", searchQuery, searchQuery, searchQuery).
+		Scopes(database.Search(searchFields, query)).
 		Offset(offset).Limit(pageSize).
 		Find(&users).Error
 
