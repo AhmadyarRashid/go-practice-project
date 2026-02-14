@@ -1,0 +1,660 @@
+{
+	"info": {
+		"_postman_id": "go-enterprise-api-collection",
+		"name": "Go Enterprise API",
+		"description": "Complete API collection for Go Enterprise API project.\n\n## Getting Started\n\n1. Import this collection into Postman\n2. Import the environment file (Go_Enterprise_API.postman_environment.json)\n3. Start the server: `go run cmd/api/main.go`\n4. Register a user first, then login to get tokens\n5. The collection will automatically use the access token for protected routes\n\n## Authentication Flow\n\n1. Register → Creates new user and returns tokens\n2. Login → Returns access_token and refresh_token\n3. Use access_token in Authorization header\n4. When token expires, use refresh endpoint",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Health",
+			"description": "Health check endpoints - No authentication required",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						},
+						"description": "Basic health check endpoint. Returns 200 if server is running."
+					},
+					"response": []
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health/ready",
+							"host": ["{{baseUrl}}"],
+							"path": ["health", "ready"]
+						},
+						"description": "Checks if the service and all dependencies (database) are ready."
+					},
+					"response": []
+				},
+				{
+					"name": "Liveness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health/live",
+							"host": ["{{baseUrl}}"],
+							"path": ["health", "live"]
+						},
+						"description": "Simple liveness check. Returns 200 if the service is alive."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authentication",
+			"description": "Authentication endpoints for user registration, login, logout, and token management",
+			"item": [
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.tokens) {",
+									"        pm.environment.set('access_token', jsonData.data.tokens.access_token);",
+									"        pm.environment.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"        pm.environment.set('user_id', jsonData.data.user.id);",
+									"        console.log('Tokens saved to environment');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"Password123!\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "register"]
+						},
+						"description": "Register a new user account.\n\n**Password Requirements:**\n- Minimum 8 characters\n- At least one uppercase letter\n- At least one lowercase letter\n- At least one number\n- At least one special character\n\n**Note:** Tokens are automatically saved to environment variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.tokens) {",
+									"        pm.environment.set('access_token', jsonData.data.tokens.access_token);",
+									"        pm.environment.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"        pm.environment.set('user_id', jsonData.data.user.id);",
+									"        console.log('Tokens saved to environment');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login with email and password.\n\nReturns:\n- access_token (expires in 24 hours)\n- refresh_token (expires in 7 days)\n\n**Note:** Tokens are automatically saved to environment variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User (Me)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						},
+						"description": "Get the currently authenticated user's profile.\n\n**Requires:** Authentication (Bearer token)"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Tokens",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.tokens) {",
+									"        pm.environment.set('access_token', jsonData.data.tokens.access_token);",
+									"        pm.environment.set('refresh_token', jsonData.data.tokens.refresh_token);",
+									"        console.log('New tokens saved to environment');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Get new access and refresh tokens using a valid refresh token.\n\nUse this when your access token expires.\n\n**Note:** New tokens are automatically saved to environment variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"Password123!\",\n    \"new_password\": \"NewPassword456!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/change-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "change-password"]
+						},
+						"description": "Change the current user's password.\n\n**Requires:** Authentication (Bearer token)\n\n**Note:** After changing password, all existing tokens are invalidated. You need to login again."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    pm.environment.unset('access_token');",
+									"    pm.environment.unset('refresh_token');",
+									"    console.log('Tokens cleared from environment');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Logout the current user and invalidate refresh token.\n\n**Requires:** Authentication (Bearer token)\n\n**Note:** Tokens are automatically cleared from environment variables."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"description": "User management endpoints. All endpoints require authentication.",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users?page=1&page_size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "page_size",
+									"value": "10",
+									"description": "Items per page (default: 10, max: 100)"
+								}
+							]
+						},
+						"description": "Get a paginated list of all users.\n\n**Requires:** Authentication (Bearer token)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/{{user_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Get a specific user by their ID.\n\n**Requires:** Authentication (Bearer token)"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/search?q=john&page=1&page_size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "search"],
+							"query": [
+								{
+									"key": "q",
+									"value": "john",
+									"description": "Search query (searches in name and email)"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Search for users by name or email.\n\n**Requires:** Authentication (Bearer token)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Smith\",\n    \"bio\": \"Software Developer\",\n    \"phone_number\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/{{user_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Update a user's profile.\n\n**Requires:** Authentication (Bearer token)\n\n**Note:** Users can only update their own profile. Admins can update any user."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User (Admin Only)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/{{user_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{user_id}}"]
+						},
+						"description": "Delete a user account.\n\n**Requires:** Admin role\n\n**Note:** Admins cannot delete their own account."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Status (Admin Only)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/{{user_id}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{user_id}}", "status"]
+						},
+						"description": "Update a user's account status.\n\n**Requires:** Admin role\n\n**Valid statuses:**\n- active\n- inactive\n- banned\n- pending"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Role (Admin Only)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/{{user_id}}/role",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{user_id}}", "role"]
+						},
+						"description": "Update a user's role.\n\n**Requires:** Admin role\n\n**Valid roles:**\n- user\n- moderator\n- admin\n\n**Note:** Admins cannot change their own role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Posts",
+			"description": "Blog post management endpoints",
+			"item": [
+				{
+					"name": "Get All Posts (Public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts?page=1&page_size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get a paginated list of published posts.\n\n**Authentication:** Optional\n- Without auth: Only published posts\n- With admin auth: All posts including drafts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Post by ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts/{{post_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "{{post_id}}"]
+						},
+						"description": "Get a specific post by ID.\n\n**Authentication:** Optional\n- Draft posts only visible to owner or admin"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Post by Slug",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts/slug/my-first-post-abc12345",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "slug", "my-first-post-abc12345"]
+						},
+						"description": "Get a specific post by its URL slug.\n\n**Authentication:** Optional"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Posts (Public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts/search?q=hello&page=1&page_size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "search"],
+							"query": [
+								{
+									"key": "q",
+									"value": "hello",
+									"description": "Search query (searches in title and content)"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Search for posts by title or content.\n\n**Authentication:** Not required"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Post",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.post) {",
+									"        pm.environment.set('post_id', jsonData.data.post.id);",
+									"        pm.environment.set('post_slug', jsonData.data.post.slug);",
+									"        console.log('Post ID saved to environment');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"My First Blog Post\",\n    \"content\": \"This is the content of my first blog post. It can be quite long and contain markdown formatting.\\n\\n## Section 1\\n\\nSome text here...\\n\\n## Section 2\\n\\nMore text here...\",\n    \"excerpt\": \"A brief summary of the post\",\n    \"status\": \"draft\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/posts",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts"]
+						},
+						"description": "Create a new blog post.\n\n**Requires:** Authentication (Bearer token)\n\n**Valid statuses:**\n- draft (default)\n- published\n- archived\n\n**Note:** Post ID is automatically saved to environment variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Posts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts/my?page=1&page_size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "my"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get all posts created by the authenticated user.\n\n**Requires:** Authentication (Bearer token)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Post",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated Blog Post Title\",\n    \"content\": \"Updated content...\",\n    \"excerpt\": \"Updated excerpt\",\n    \"status\": \"published\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/posts/{{post_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "{{post_id}}"]
+						},
+						"description": "Update an existing post.\n\n**Requires:** Authentication (Bearer token)\n\n**Note:** Users can only update their own posts. Admins can update any post."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Post",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/posts/{{post_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["posts", "{{post_id}}"]
+						},
+						"description": "Delete a post.\n\n**Requires:** Authentication (Bearer token)\n\n**Note:** Users can only delete their own posts. Admins can delete any post."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"description": "Admin-only endpoints",
+			"item": [
+				{
+					"name": "System Info (Admin Only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/health/info",
+							"host": ["{{baseUrl}}"],
+							"path": ["admin", "health", "info"]
+						},
+						"description": "Get system information including memory usage, goroutines, etc.\n\n**Requires:** Admin role"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
